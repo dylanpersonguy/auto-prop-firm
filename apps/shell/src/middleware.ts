@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.PROPSIM_SHELL_JWT_SECRET || 'changeme_local_dev',
+);
+
+const REFRESH_COOKIE = 'propsim_refresh_token';
+const ACCESS_COOKIE = 'propsim_access_token';
+const PROPSIM_BASE = process.env.PROPSIM_BASE_URL || 'http://localhost:3000';
 
 const PUBLIC_PATHS = new Set([
   '/',
@@ -22,7 +31,7 @@ const PUBLIC_PREFIXES = [
   '/favicon',
 ];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths
@@ -45,13 +54,54 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Token exists — optionally check expiry (quick decode, no verification)
+  // Token exists — verify signature + expiry
   try {
-    const payload = JSON.parse(
-      Buffer.from(token.split('.')[1], 'base64url').toString('utf-8'),
-    );
-    if (payload.exp && payload.exp * 1000 < Date.now()) {
-      // Token expired — try refresh via API, or redirect
+    await jwtVerify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    return NextResponse.next();
+  } catch (err: any) {
+    const isExpired = err?.code === 'ERR_JWT_EXPIRED';
+
+    // If expired, try silent refresh before giving up
+    if (isExpired) {
+      const refreshToken = req.cookies.get(REFRESH_COOKIE)?.value;
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch(`${PROPSIM_BASE}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            const tokens = data?.data ?? data;
+            if (tokens.accessToken && tokens.refreshToken) {
+              const response = NextResponse.next();
+              const secure = process.env.NODE_ENV === 'production';
+
+              response.cookies.set(ACCESS_COOKIE, tokens.accessToken, {
+                httpOnly: true,
+                secure,
+                sameSite: 'lax',
+                path: '/',
+                maxAge: 60 * 60,
+              });
+              response.cookies.set(REFRESH_COOKIE, tokens.refreshToken, {
+                httpOnly: true,
+                secure,
+                sameSite: 'lax',
+                path: '/',
+                maxAge: 60 * 60 * 24 * 30,
+              });
+              return response;
+            }
+          }
+        } catch {
+          // Refresh failed — fall through to redirect
+        }
+      }
+
+      // Expired and refresh failed
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Token expired' }, { status: 401 });
       }
@@ -60,11 +110,15 @@ export function middleware(req: NextRequest) {
       loginUrl.searchParams.set('expired', '1');
       return NextResponse.redirect(loginUrl);
     }
-  } catch {
-    // Can't decode — let the API/page handle it
-  }
 
-  return NextResponse.next();
+    // Invalid signature, malformed, or tampered — reject
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
 }
 
 export const config = {

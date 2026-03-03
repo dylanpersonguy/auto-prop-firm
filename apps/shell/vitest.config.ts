@@ -4,6 +4,13 @@ import path from 'path';
 export default defineConfig({
   test: {
     globals: true,
+    environment: 'node',
+    include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/lib/**'],
+    },
+    setupFiles: ['tests/setup.ts'],
   },
   resolve: {
     alias: {

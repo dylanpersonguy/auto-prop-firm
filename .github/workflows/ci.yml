@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-typecheck-test:
+    name: Lint, Typecheck & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter shell db:generate
+
+      - name: Build vault-sdk
+        run: pnpm --filter @auto-prop-firm/vault-sdk build
+
+      - name: TypeScript type check
+        run: pnpm --filter shell exec tsc --noEmit
+
+      - name: Run tests
+        run: pnpm --filter shell test
+        env:
+          PROPSIM_SHELL_JWT_SECRET: ci_test_secret
+          ADMIN_JWT_SECRET: ci_admin_secret
+          PROPSIM_BASE_URL: http://localhost:3000
+          PROPSIM_API_KEY: ci_test_key
+
+      - name: Next.js build
+        run: pnpm --filter shell build
+        env:
+          PROPSIM_SHELL_JWT_SECRET: ci_test_secret
+          ADMIN_JWT_SECRET: ci_admin_secret
+          PROPSIM_BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_PROPSIM_BASE_URL: http://localhost:3000
+          PROPSIM_API_KEY: ci_test_key
