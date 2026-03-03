@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface Deposit {
   id: string;
@@ -22,26 +23,23 @@ interface Pagination {
 const SKU_OPTIONS = ['', 'starter-50k', 'standard-100k', 'pro-200k'];
 
 export default function AdminDepositsPage() {
-  const [deposits, setDeposits] = useState<Deposit[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
   const [sku, setSku] = useState('');
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
 
-  const fetchDeposits = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '20' });
-    if (sku) params.set('sku', sku);
-    const res = await fetch(`/api/admin/deposits?${params}`);
-    const data = await res.json();
-    setDeposits(data.deposits);
-    setPagination(data.pagination);
-    setLoading(false);
-  }, [page, sku]);
+  const { data: queryData, isLoading: loading } = useQuery<{ deposits: Deposit[]; pagination: Pagination }>({
+    queryKey: ['admin', 'deposits', page, sku],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (sku) params.set('sku', sku);
+      const res = await fetch(`/api/admin/deposits?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch deposits');
+      return res.json();
+    },
+    placeholderData: (prev) => prev,
+  });
 
-  useEffect(() => {
-    fetchDeposits();
-  }, [fetchDeposits]);
+  const deposits = queryData?.deposits ?? [];
+  const pagination = queryData?.pagination ?? null;
 
   return (
     <div className="space-y-6">

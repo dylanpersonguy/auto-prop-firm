@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface ReferralStats {
   totalUsers: number;
@@ -25,21 +25,21 @@ function toUsdc(baseUnits: string): string {
 }
 
 export default function AdminReferralsPage() {
-  const [stats, setStats] = useState<ReferralStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: stats, isLoading, isError } = useQuery<ReferralStats>({
+    queryKey: ['admin', 'referralStats'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/referral/stats');
+      if (!res.ok) throw new Error('Failed to fetch referral stats');
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    fetch('/api/admin/referral/stats')
-      .then((r) => r.json())
-      .then(setStats)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return <div className="text-gray-500">Loading referral stats...</div>;
   }
 
-  if (!stats) {
+  if (isError || !stats) {
     return <div className="text-red-400">Failed to load referral stats.</div>;
   }
 

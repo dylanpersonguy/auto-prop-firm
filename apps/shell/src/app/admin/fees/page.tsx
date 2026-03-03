@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface FeeEntry {
   id: string;
@@ -56,32 +56,27 @@ function bpsToPercent(bps: number): string {
 }
 
 export default function AdminFeesPage() {
-  const [data, setData] = useState<FeeDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data, isLoading, isError, error } = useQuery<FeeDashboardData>({
+    queryKey: ['admin', 'fees'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/fees');
+      if (!res.ok) throw new Error('Failed to load fee data');
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    fetch('/api/admin/fees')
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load');
-        return r.json();
-      })
-      .then(setData)
-      .catch(() => setError('Failed to load fee data'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">Loading fee data...</div>
     );
   }
 
-  if (error || !data) {
+  if (isError || !data) {
     return (
       <div className="p-6">
         <div className="bg-red-900/20 border border-red-800 rounded-xl p-4 text-red-400">
-          {error || 'Unknown error'}
+          {error instanceof Error ? error.message : 'Unknown error'}
         </div>
       </div>
     );

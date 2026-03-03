@@ -82,15 +82,6 @@ export function useLedger(id: string, page?: number, pageSize?: number) {
   });
 }
 
-export function useAccountStats(id: string) {
-  return useQuery({
-    queryKey: ['stats', id],
-    queryFn: () => api.fetchAccountStats(id),
-    enabled: !!id,
-    staleTime: 30_000,
-  });
-}
-
 // ── Trading: Orders ──
 
 export function useOrders(accountId: string, status?: string) {
@@ -229,16 +220,6 @@ export function useTicks() {
   });
 }
 
-export function useTick(symbol: string) {
-  return useQuery({
-    queryKey: ['tick', symbol],
-    queryFn: () => api.fetchTick(symbol),
-    enabled: !!symbol,
-    refetchInterval: 1_000,
-    placeholderData: (prev: any) => prev,
-  });
-}
-
 // ── Real-time SSE Ticks ──
 
 export interface RealtimeTick {
@@ -285,40 +266,6 @@ export function useRealtimeTick(symbol: string): RealtimeTick | null {
   }, [symbol]);
 
   return tick;
-}
-
-/**
- * Hook for streaming ticks for multiple symbols.
- * Returns a map of symbol -> latest tick.
- */
-export function useRealtimeTicks(symbols: string[]): Record<string, RealtimeTick> {
-  const [ticks, setTicks] = useState<Record<string, RealtimeTick>>({});
-  const esRef = useRef<EventSource | null>(null);
-  const symbolsKey = symbols.sort().join(',');
-
-  useEffect(() => {
-    if (!symbolsKey) return;
-
-    const url = `/api/ws/ticks?symbols=${encodeURIComponent(symbolsKey)}`;
-    const es = new EventSource(url);
-    esRef.current = es;
-
-    es.addEventListener('tick', (e) => {
-      try {
-        const data = JSON.parse(e.data) as RealtimeTick;
-        setTicks((prev) => ({ ...prev, [data.symbol]: data }));
-      } catch { /* ignore */ }
-    });
-
-    es.onerror = () => {};
-
-    return () => {
-      es.close();
-      esRef.current = null;
-    };
-  }, [symbolsKey]);
-
-  return ticks;
 }
 
 export function useCandles(symbol: string, timeframe?: string, limit?: number) {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Payout {
   id: string;
@@ -24,40 +25,44 @@ interface Pagination {
 const STATUS_OPTIONS = ['', 'ISSUED', 'REDEEMED', 'EXPIRED'];
 
 export default function AdminPayoutsPage() {
-  const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchPayouts = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '20' });
-    if (status) params.set('status', status);
-    const res = await fetch(`/api/admin/payouts?${params}`);
-    const data = await res.json();
-    setPayouts(data.payouts);
-    setPagination(data.pagination);
-    setLoading(false);
-  }, [page, status]);
+  const { data: queryData, isLoading: loading } = useQuery<{ payouts: Payout[]; pagination: Pagination }>({
+    queryKey: ['admin', 'payouts', page, status],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (status) params.set('status', status);
+      const res = await fetch(`/api/admin/payouts?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch payouts');
+      return res.json();
+    },
+    placeholderData: (prev) => prev,
+  });
 
-  useEffect(() => {
-    fetchPayouts();
-  }, [fetchPayouts]);
+  const payouts = queryData?.payouts ?? [];
+  const pagination = queryData?.pagination ?? null;
 
-  async function updateStatus(id: string, newStatus: string) {
-    setUpdatingId(id);
-    const res = await fetch(`/api/admin/payouts/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setPayouts((prev) => prev.map((p) => (p.id === id ? { ...p, status: updated.status } : p)));
-    }
-    setUpdatingId(null);
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
+      const res = await fetch(`/api/admin/payouts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update payout');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] });
+    },
+  });
+
+  const updatingId = statusMutation.isPending ? statusMutation.variables?.id ?? null : null;
+
+  function updateStatus(id: string, newStatus: string) {
+    statusMutation.mutate({ id, newStatus });
   }
 
   return (

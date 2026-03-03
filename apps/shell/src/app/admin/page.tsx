@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
 interface OverviewData {
@@ -39,21 +39,33 @@ function StatCard({ title, value, subtitle, accent }: { title: string; value: st
 }
 
 export default function AdminOverviewPage() {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, isError } = useQuery<OverviewData>({
+    queryKey: ['admin', 'overview'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/overview');
+      if (!res.ok) throw new Error('Failed to fetch overview');
+      return res.json();
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
 
-  useEffect(() => {
-    fetch('/api/admin/overview')
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return <div className="text-gray-500">Loading overview...</div>;
+  if (isLoading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 w-48 bg-gray-800 rounded" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-gray-800/50 rounded-xl" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-40 bg-gray-800/50 rounded-xl" />
+          <div className="h-40 bg-gray-800/50 rounded-xl" />
+        </div>
+      </div>
+    );
   }
 
-  if (!data) {
+  if (isError || !data) {
     return <div className="text-red-400">Failed to load overview data.</div>;
   }
 

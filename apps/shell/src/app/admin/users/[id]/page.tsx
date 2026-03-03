@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -37,44 +37,55 @@ interface PayoutClaim {
 export default function AdminUserDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [user, setUser] = useState<UserDetail | null>(null);
-  const [deposits, setDeposits] = useState<Deposit[]>([]);
-  const [payoutClaims, setPayoutClaims] = useState<PayoutClaim[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetch(`/api/admin/users/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setUser(data.user);
-        setDeposits(data.deposits || []);
-        setPayoutClaims(data.payoutClaims || []);
-      })
-      .finally(() => setLoading(false));
-  }, [params.id]);
+  const { data: queryData, isLoading, isError } = useQuery<{
+    user: UserDetail;
+    deposits: Deposit[];
+    payoutClaims: PayoutClaim[];
+  }>({
+    queryKey: ['admin', 'user', params.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/users/${params.id}`);
+      if (!res.ok) throw new Error('Failed to fetch user');
+      return res.json();
+    },
+  });
 
-  async function toggleRole() {
+  const user = queryData?.user ?? null;
+  const deposits = queryData?.deposits ?? [];
+  const payoutClaims = queryData?.payoutClaims ?? [];
+
+  const roleMutation = useMutation({
+    mutationFn: async (newRole: string) => {
+      const res = await fetch(`/api/admin/users/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (!res.ok) throw new Error('Failed to update role');
+      return res.json();
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['admin', 'user', params.id], (old: any) => ({
+        ...old,
+        user: { ...old.user, role: updated.role },
+      }));
+    },
+  });
+
+  const updating = roleMutation.isPending;
+
+  function toggleRole() {
     if (!user) return;
-    setUpdating(true);
-    const newRole = user.role === 'ADMIN' ? 'USER' : 'ADMIN';
-    const res = await fetch(`/api/admin/users/${params.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: newRole }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setUser({ ...user, role: updated.role });
-    }
-    setUpdating(false);
+    roleMutation.mutate(user.role === 'ADMIN' ? 'USER' : 'ADMIN');
   }
 
-  if (loading) {
+  if (isLoading) {
     return <div className="text-gray-500">Loading user...</div>;
   }
 
-  if (!user) {
+  if (isError || !user) {
     return <div className="text-red-400">User not found.</div>;
   }
 

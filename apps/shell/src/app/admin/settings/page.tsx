@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface CatalogItem {
   sku: string;
@@ -18,18 +18,18 @@ interface SettingsData {
 }
 
 export default function AdminSettingsPage() {
-  const [data, setData] = useState<SettingsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, isError } = useQuery<SettingsData>({
+    queryKey: ['admin', 'settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/settings');
+      if (!res.ok) throw new Error('Failed to fetch settings');
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
 
-  useEffect(() => {
-    fetch('/api/admin/settings')
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="text-gray-500">Loading settings...</div>;
-  if (!data) return <div className="text-red-400">Failed to load settings.</div>;
+  if (isLoading) return <div className="text-gray-500">Loading settings...</div>;
+  if (isError || !data) return <div className="text-red-400">Failed to load settings.</div>;
 
   return (
     <div className="space-y-8">

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Navbar } from '@/components/Navbar';
 
 interface ProofData {
   treasury: {
@@ -36,7 +35,6 @@ export default function ProofOfReservesPage() {
 
   return (
     <>
-      <Navbar />
       <main className="max-w-4xl mx-auto px-4 py-10">
         <h1 className="text-3xl font-bold mb-2">Proof of Reserves</h1>
         <p className="text-gray-400 mb-8">

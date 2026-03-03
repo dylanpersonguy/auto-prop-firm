@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
 interface User {
@@ -22,31 +23,29 @@ interface Pagination {
 }
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
   const [search, setSearch] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '20' });
-    if (search) params.set('search', search);
-    const res = await fetch(`/api/admin/users?${params}`);
-    const data = await res.json();
-    setUsers(data.users);
-    setPagination(data.pagination);
-    setLoading(false);
-  }, [page, search]);
+  const { data: queryData, isLoading: loading } = useQuery<{ users: User[]; pagination: Pagination }>({
+    queryKey: ['admin', 'users', page, activeSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (activeSearch) params.set('search', activeSearch);
+      const res = await fetch(`/api/admin/users?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch users');
+      return res.json();
+    },
+    placeholderData: (prev) => prev,
+  });
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  const users = queryData?.users ?? [];
+  const pagination = queryData?.pagination ?? null;
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
+    setActiveSearch(search);
     setPage(1);
-    fetchUsers();
   }
 
   return (

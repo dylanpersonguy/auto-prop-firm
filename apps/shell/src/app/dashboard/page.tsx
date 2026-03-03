@@ -2,8 +2,7 @@
 
 import { useMemo, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Navbar } from '@/components/Navbar';
-import { useAccounts, useAllPayouts, useTicks } from '@/lib/hooks';
+import { useAccounts, useAllPayouts, useTicks, useEquity } from '@/lib/hooks';
 
 /* ── Helpers ── */
 function fmt(v: number | null | undefined, d = 2) {
@@ -137,19 +136,17 @@ function AccountCard({ account, idx, totalEquity }: {
     : 0;
   const sc = statusConfig[account.status] ?? { bg: 'bg-gray-500/10', text: 'text-gray-400', dot: 'bg-gray-400', glow: '' };
 
-  /* Synthetic sparkline per-account */
+  /* Real equity history for sparkline */
+  const { data: equityHistory = [] } = useEquity(account.id, 24);
   const acctSparkData = useMemo(() => {
-    const b = account.startingBalance ?? account.balance ?? 0;
-    const pts: number[] = [];
-    let v = b;
-    for (let i = 0; i < 20; i++) {
-      v += (Math.random() - 0.45) * b * 0.008;
-      pts.push(v);
+    if (equityHistory.length >= 2) {
+      return equityHistory.map((p: any) => p.equity);
     }
-    pts.push(account.equity ?? b);
-    return pts;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account.id, account.equity]);
+    // Fallback: just show starting → current as a simple 2-point line
+    const start = account.startingBalance ?? account.balance ?? 0;
+    const end = account.equity ?? start;
+    return [start, end];
+  }, [equityHistory, account.startingBalance, account.balance, account.equity]);
 
   const equityRatio = totalEquity > 0 ? (account.equity ?? 0) / totalEquity : 0;
 
@@ -265,27 +262,30 @@ export default function DashboardPage() {
     return startBal > 0 ? (totalPnl / startBal) * 100 : 0;
   }, [accounts, totalPnl]);
 
-  /* Generate synthetic sparkline data from account info */
+  /* Generate sparkline from real equity data of first account, or simple start→end line */
+  const firstAccountId = accounts.length > 0 ? accounts[0].id : '';
+  const { data: topEquityHistory = [] } = useEquity(firstAccountId, 24);
   const sparkData = useMemo(() => {
-    if (accounts.length === 0) return [];
-    const base = totalBalance;
-    const pts: number[] = [];
-    let v = base * 0.92;
-    for (let i = 0; i < 24; i++) {
-      v += (Math.random() - 0.42) * base * 0.012;
-      pts.push(v);
+    if (topEquityHistory.length >= 2) {
+      return topEquityHistory.map((p: any) => p.equity);
     }
-    pts.push(totalEquity);
-    return pts;
-  }, [accounts, totalBalance, totalEquity]);
+    if (accounts.length === 0) return [];
+    return [totalBalance, totalEquity];
+  }, [topEquityHistory, accounts.length, totalBalance, totalEquity]);
 
-  /* Market watchlist (top 4 tickers) */
+  /* Market watchlist (top 6 tickers) — track initial prices for change % */
   const watchlist = useMemo(() => ticks.slice(0, 6), [ticks]);
+  const initialPricesRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    for (const t of ticks) {
+      if (t.symbol && t.mid && !(t.symbol in initialPricesRef.current)) {
+        initialPricesRef.current[t.symbol] = t.mid;
+      }
+    }
+  }, [ticks]);
 
   return (
     <>
-      <Navbar />
-
       {/* Mesh gradient background */}
       <div className="mesh-gradient" />
       <div className="noise-overlay" />
@@ -470,7 +470,9 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {watchlist.map((t) => {
-                    const change = t.mid ? ((t.mid - Math.round(t.mid)) / (t.mid || 1)) * 100 : (Math.random() - 0.45) * 2;
+                    const initPrice = initialPricesRef.current[t.symbol];
+                    const currentPrice = t.mid ?? t.bid;
+                    const change = initPrice && currentPrice ? ((currentPrice - initPrice) / initPrice) * 100 : 0;
                     return (
                       <div key={t.symbol} className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
                         <div>
