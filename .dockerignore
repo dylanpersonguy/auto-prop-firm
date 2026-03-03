@@ -1,0 +1,31 @@
+# ── Build artifacts ──
+node_modules
+.next
+dist
+target
+.turbo
+
+# ── Dev files ──
+.env
+.env.local
+.env.development.local
+apps/shell/.env
+apps/shell/.env.local
+apps/shell/prisma/dev.db
+apps/shell/prisma/dev.db-journal
+*.so
+
+# ── Version control ──
+.git
+.github
+
+# ── Anchor / Solana dev ──
+.anchor
+test-ledger
+programs/propsim_vault/target
+
+# ── IDE / OS ──
+.DS_Store
+.vscode
+*.swp
+*.swo

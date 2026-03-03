@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { rateLimit, rateLimitCategory, getClientId } from '@/lib/rate-limit';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.PROPSIM_SHELL_JWT_SECRET || 'changeme_local_dev',
@@ -27,18 +28,45 @@ const PUBLIC_PREFIXES = [
   '/api/ws/',
   '/api/firm',
   '/api/features',
-  '/_next/',
-  '/favicon',
 ];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow public paths
+  // Pure static / framework paths — skip everything
+  if (pathname.startsWith('/_next/') || pathname.startsWith('/favicon') || pathname.includes('.')) {
+    return NextResponse.next();
+  }
+
+  // ── Rate limiting (applies to ALL non-static paths, including public) ──
+  const clientId = getClientId(req);
+  const rlConfig = rateLimitCategory(pathname);
+  const rl = rateLimit(`${clientId}:${pathname.split('/').slice(0, 4).join('/')}`, rlConfig);
+
+  if (!rl.allowed) {
+    const retryAfter = Math.ceil(rl.resetMs / 1000);
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(retryAfter),
+            'X-RateLimit-Limit': String(rl.limit),
+            'X-RateLimit-Remaining': '0',
+          },
+        },
+      );
+    }
+    return new NextResponse('Too many requests. Please try again shortly.', {
+      status: 429,
+      headers: { 'Retry-After': String(retryAfter) },
+    });
+  }
+
+  // ── Public paths — rate-limited but no auth required ──
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
-  // Static files
-  if (pathname.includes('.')) return NextResponse.next();
 
   // Check for auth cookie
   const token = req.cookies.get('propsim_access_token')?.value;

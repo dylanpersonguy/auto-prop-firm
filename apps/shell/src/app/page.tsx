@@ -1,4 +1,11 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'AutoProp Firm – Trade Simulated Capital, Earn Real USDC',
+  description:
+    'The first on-chain prop firm on Solana. Buy a challenge, prove your skills, get funded, and earn real USDC payouts. Transparent. Permissionless. Built for traders.',
+};
 
 /* ── Icon components ── */
 function IconWallet() {

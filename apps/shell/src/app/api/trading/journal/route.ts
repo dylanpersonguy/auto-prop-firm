@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { propsimFetch } from '@/lib/propsim';
+import { proxyPropSimGet, apiBadRequest } from '@/lib/api-response';
 
 export async function GET(req: NextRequest) {
-  try {
-    const qs = req.nextUrl.searchParams.toString();
-    const res = await propsimFetch(`/api/trading/journal${qs ? `?${qs}` : ''}`);
-    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
-  } catch { /* PropSim unavailable */ }
-
-  return NextResponse.json([]);
+  const qs = req.nextUrl.searchParams.toString();
+  return proxyPropSimGet(propsimFetch, `/api/trading/journal${qs ? `?${qs}` : ''}`);
 }
 
 export async function POST(req: NextRequest) {
@@ -16,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return apiBadRequest('Invalid JSON');
   }
 
   try {

@@ -2,11 +2,28 @@ import { z } from 'zod';
 
 // ── Environment helpers ──
 
+const isProd = process.env.NODE_ENV === 'production';
+
+/**
+ * Require a value in production — throw immediately if missing.
+ * In development, fall back to the provided default.
+ */
+function requireInProd(name: string, value: string | undefined, devDefault: string): string {
+  if (value) return value;
+  if (isProd) {
+    throw new Error(
+      `[ENV] Missing required environment variable: ${name}. ` +
+      `This must be set in production.`,
+    );
+  }
+  return devDefault;
+}
+
 export const env = {
   propsimBaseUrl: process.env.PROPSIM_BASE_URL || 'http://localhost:3000',
-  propsimApiKey: process.env.PROPSIM_API_KEY || '',
+  propsimApiKey: requireInProd('PROPSIM_API_KEY', process.env.PROPSIM_API_KEY, ''),
   publicPropsimBaseUrl: process.env.NEXT_PUBLIC_PROPSIM_BASE_URL || 'http://localhost:3000',
-  jwtSecret: process.env.PROPSIM_SHELL_JWT_SECRET || 'changeme_local_dev',
+  jwtSecret: requireInProd('PROPSIM_SHELL_JWT_SECRET', process.env.PROPSIM_SHELL_JWT_SECRET, 'changeme_local_dev'),
   solanaRpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'http://localhost:8899',
   usdcMint: process.env.NEXT_PUBLIC_USDC_MINT || '',
   treasuryWallet: process.env.NEXT_PUBLIC_TREASURY_WALLET || '',
@@ -18,8 +35,8 @@ export const env = {
   claimDomain: process.env.CLAIM_DOMAIN || 'PROPSIM_PAYOUT_V1',
   claimTtlSeconds: parseInt(process.env.CLAIM_TTL_SECONDS || '604800', 10),
   dailyCapUsdc: parseInt(process.env.DAILY_CAP_USDC || '5000', 10),
-  adminPassword: process.env.ADMIN_PASSWORD || 'admin123',
-  adminJwtSecret: process.env.ADMIN_JWT_SECRET || 'admin_secret_changeme',
+  adminPassword: requireInProd('ADMIN_PASSWORD', process.env.ADMIN_PASSWORD, 'admin123'),
+  adminJwtSecret: requireInProd('ADMIN_JWT_SECRET', process.env.ADMIN_JWT_SECRET, 'admin_secret_changeme'),
 };
 
 // ── Zod schemas for PropSim API responses ──

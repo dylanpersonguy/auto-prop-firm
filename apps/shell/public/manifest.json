@@ -1,0 +1,16 @@
+{
+  "name": "AutoProp Firm",
+  "short_name": "AutoProp",
+  "description": "Trade simulated capital, earn real USDC payouts on Solana.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

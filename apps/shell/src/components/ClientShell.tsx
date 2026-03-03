@@ -27,7 +27,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       {showNavbar && <Navbar />}
-      {children}
+      <div id="main-content" role="main">
+        {children}
+      </div>
     </ToastProvider>
   );
 }

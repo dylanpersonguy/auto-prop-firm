@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { propsimFetch } from '@/lib/propsim';
 import { calculateTradeFees } from '@/lib/fees';
 import { recordFirmFees } from '@/lib/fee-recorder';
+import { apiBadRequest, apiError } from '@/lib/api-response';
 import { randomUUID } from 'crypto';
 
 // ── In-memory mock order book (dev/demo only) ──
@@ -12,7 +13,13 @@ export async function GET(req: NextRequest) {
     const qs = req.nextUrl.searchParams.toString();
     const res = await propsimFetch(`/api/trading/orders${qs ? `?${qs}` : ''}`);
     if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
-  } catch { /* PropSim unavailable */ }
+    // PropSim returned non-ok — propagate
+    const text = await res.text().catch(() => '');
+    console.error(`PropSim /api/trading/orders returned ${res.status}: ${text}`);
+    return apiError(`Upstream error: ${res.statusText}`, res.status >= 500 ? 502 : res.status);
+  } catch {
+    console.warn('PropSim unreachable for /api/trading/orders, using local mock');
+  }
 
   // Return local mock orders filtered by accountId if provided
   const accountId = req.nextUrl.searchParams.get('accountId');

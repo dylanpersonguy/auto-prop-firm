@@ -1,12 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { propsimFetch } from '@/lib/propsim';
+import { proxyPropSimGet } from '@/lib/api-response';
 
 export async function GET(req: NextRequest) {
-  try {
-    const qs = req.nextUrl.searchParams.toString();
-    const res = await propsimFetch(`/api/trading/closed-positions${qs ? `?${qs}` : ''}`);
-    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
-  } catch { /* PropSim unavailable */ }
-
-  return NextResponse.json([]);
+  const qs = req.nextUrl.searchParams.toString();
+  return proxyPropSimGet(propsimFetch, `/api/trading/closed-positions${qs ? `?${qs}` : ''}`);
 }

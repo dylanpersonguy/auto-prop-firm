@@ -1,0 +1,31 @@
+# Auto Prop Firm – Docker Compose
+# Usage: docker compose up -d
+#
+# Requires: apps/shell/.env with all production secrets set.
+
+services:
+  shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - apps/shell/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=file:/data/prod.db
+    volumes:
+      # Persist SQLite data (swap to Postgres volume in production)
+      - shell-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/firm"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  shell-data:

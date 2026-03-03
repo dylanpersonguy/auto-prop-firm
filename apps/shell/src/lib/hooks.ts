@@ -354,5 +354,77 @@ export function useAllPayouts() {
   });
 }
 
+// ── Real-time Trading Stream ──
+
+/**
+ * Hook that connects to /api/ws/trading SSE endpoint for real-time
+ * positions, orders, fills, and account status updates.
+ * Automatically injects data into TanStack Query cache, reducing
+ * the need for polling.
+ *
+ * Call once per active account (e.g. in the trading terminal).
+ */
+export function useTradingStream(accountId: string) {
+  const qc = useQueryClient();
+  const [connected, setConnected] = useState(false);
+  const esRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    if (!accountId) return;
+
+    const url = `/api/ws/trading?accountId=${encodeURIComponent(accountId)}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener('connected', () => setConnected(true));
+
+    es.addEventListener('positions', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        qc.setQueryData(['positions', accountId, undefined], data);
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener('orders', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        qc.setQueryData(['orders', accountId, 'OPEN'], data);
+        qc.setQueryData(['orders', accountId, undefined], data);
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener('fills', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        qc.setQueryData(['fills', accountId, undefined, undefined], data);
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener('accountStatus', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        qc.setQueryData(['accountStatus', accountId], data);
+        // Also update metrics if the status includes them
+        if (data.equity != null) {
+          qc.setQueryData(['metrics', accountId], (old: any) => ({ ...old, ...data }));
+        }
+      } catch { /* ignore */ }
+    });
+
+    es.onerror = () => {
+      setConnected(false);
+      // EventSource auto-reconnects
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+      setConnected(false);
+    };
+  }, [accountId, qc]);
+
+  return { connected };
+}
+
 // Re-export types
 export type { ModifyOrderInput, ModifyPositionInput } from './schemas';

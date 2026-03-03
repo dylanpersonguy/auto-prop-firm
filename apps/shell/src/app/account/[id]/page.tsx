@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAccount, useAccountStatus } from '@/lib/hooks';
+import { useAccount, useAccountStatus, useTradingStream } from '@/lib/hooks';
 import {
   StatusBanner,
   MetricsCards,
@@ -37,6 +37,9 @@ export default function AccountPage() {
   const { id } = useParams<{ id: string }>();
   const { data: account, isLoading, isError } = useAccount(id);
   const { data: status } = useAccountStatus(id);
+
+  // Real-time SSE stream — injects positions/orders/fills into query cache
+  const { connected: streamConnected } = useTradingStream(id);
 
   const [symbol, setSymbol] = useState('EURUSD');
   const [timeframe, setTimeframe] = useState('1H');
@@ -105,6 +108,13 @@ export default function AccountPage() {
                 {account.status}
               </span>
             )}
+            {/* Real-time stream indicator */}
+            <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full font-medium ${
+              streamConnected ? 'bg-emerald-900/30 text-emerald-400' : 'bg-yellow-900/30 text-yellow-400'
+            }`} title={streamConnected ? 'Live data stream connected' : 'Connecting to live data...'}>
+              <span className={`w-1.5 h-1.5 rounded-full ${streamConnected ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
+              {streamConnected ? 'LIVE' : 'CONNECTING'}
+            </span>
           </div>
         </div>
 

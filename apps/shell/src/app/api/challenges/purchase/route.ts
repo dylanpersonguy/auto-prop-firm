@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { PublicKey } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { getCatalogItem } from '@/lib/catalog';
 import { env } from '@/lib/env';
+import { verifyUsdcTransfer } from '@/lib/solana';
 import { cookies } from 'next/headers';
 
 /**
@@ -56,8 +59,29 @@ export async function POST(req: NextRequest) {
       if (!txSig) {
         return NextResponse.json({ error: 'Transaction signature required for USDC payment' }, { status: 400 });
       }
-      // TODO: Verify on-chain USDC transfer via verifyUsdcTransfer()
-      // For now, accept the tx sig as-is
+      if (!env.usdcMint || !env.treasuryWallet) {
+        return NextResponse.json({ error: 'USDC payment not configured' }, { status: 500 });
+      }
+
+      // Verify the on-chain USDC transfer to our treasury
+      const usdcMint = new PublicKey(env.usdcMint);
+      const treasuryPubkey = new PublicKey(env.treasuryWallet);
+      const treasuryAta = getAssociatedTokenAddressSync(usdcMint, treasuryPubkey, true);
+      const expectedAmount = BigInt(item.priceUsdc * 1_000_000); // USDC has 6 decimals
+
+      const verified = await verifyUsdcTransfer({
+        txSig,
+        expectedDestinationAta: treasuryAta,
+        expectedMint: usdcMint,
+        expectedAmountBaseUnits: expectedAmount,
+      });
+
+      if (!verified) {
+        return NextResponse.json(
+          { error: 'USDC transfer could not be verified. Ensure the transaction is confirmed and sends the correct amount to our treasury.' },
+          { status: 400 },
+        );
+      }
     }
     // paymentMethod === 'mock' always succeeds
 
@@ -119,8 +143,14 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Challenge purchase error:', error);
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Validation error', details: error.errors },
+        { status: 400 },
+      );
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 },
+    );
   }
 }
