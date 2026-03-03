@@ -39,12 +39,12 @@ export async function GET() {
     ]);
 
     // Raw SQL sums for string-encoded BigInt fields
-    const commSum = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    const commSum = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(commissionAmount AS INTEGER)), 0) as total FROM ReferralCommission`,
-    );
-    const withdrawSum = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    )) as { total: number | null }[];
+    const withdrawSum = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(amountBaseUnits AS INTEGER)), 0) as total FROM ReferralWithdrawal`,
-    );
+    )) as { total: number | null }[];
 
     const totalCommissionAmount = BigInt(commSum[0]?.total ?? 0);
     const totalWithdrawnAmount = BigInt(withdrawSum[0]?.total ?? 0);
@@ -58,7 +58,7 @@ export async function GET() {
       totalWithdrawals,
       totalWithdrawnAmountBaseUnits: totalWithdrawnAmount.toString(),
       outstandingBalanceBaseUnits: (totalCommissionAmount - totalWithdrawnAmount).toString(),
-      topReferrers: topReferrers.map((u) => ({
+      topReferrers: topReferrers.map((u: any) => ({
         email: u.email,
         referralCode: u.referralCode,
         referralCount: u._count.referrals,

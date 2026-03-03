@@ -35,12 +35,14 @@ const store = new Map<string, RateLimitEntry>();
 const EVICT_INTERVAL_MS = 60_000;
 let lastEvict = Date.now();
 
-function evictStale(windowMs: number) {
+function evictStale() {
   const now = Date.now();
   if (now - lastEvict < EVICT_INTERVAL_MS) return;
   lastEvict = now;
+  // Use a conservative 2-minute threshold to cover any window size
+  const maxAge = 120_000;
   for (const [key, entry] of store) {
-    if (now - entry.lastRefill > windowMs * 2) {
+    if (now - entry.lastRefill > maxAge) {
       store.delete(key);
     }
   }
@@ -58,7 +60,7 @@ export function rateLimit(
   const now = Date.now();
   const windowMs = config.windowSeconds * 1000;
 
-  evictStale(windowMs);
+  evictStale();
 
   let entry = store.get(key);
   if (!entry) {

@@ -3,14 +3,15 @@ import { z } from 'zod';
 // ── Environment helpers ──
 
 const isProd = process.env.NODE_ENV === 'production';
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 
 /**
  * Require a value in production — throw immediately if missing.
- * In development, fall back to the provided default.
+ * In development (or during Next.js build), fall back to the provided default.
  */
 function requireInProd(name: string, value: string | undefined, devDefault: string): string {
   if (value) return value;
-  if (isProd) {
+  if (isProd && !isBuildPhase) {
     throw new Error(
       `[ENV] Missing required environment variable: ${name}. ` +
       `This must be set in production.`,

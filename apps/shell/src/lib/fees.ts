@@ -122,8 +122,10 @@ export function challengeFeeBreakdown(priceUsdc: number) {
  */
 export function formatUsdc(baseUnits: bigint | string): string {
   const val = typeof baseUnits === 'string' ? BigInt(baseUnits) : baseUnits;
-  const whole = val / 1_000_000n;
-  const frac = val % 1_000_000n;
+  const abs = val < 0n ? -val : val;
+  const sign = val < 0n ? '-' : '';
+  const whole = abs / 1_000_000n;
+  const frac = abs % 1_000_000n;
   const fracStr = frac.toString().padStart(6, '0').replace(/0+$/, '');
-  return fracStr ? `${whole}.${fracStr}` : whole.toString();
+  return sign + (fracStr ? `${whole}.${fracStr}` : whole.toString());
 }

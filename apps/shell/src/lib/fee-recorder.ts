@@ -19,7 +19,7 @@ export async function recordFirmFee(params: {
   // Skip zero-amount fees
   if (amountBaseUnits <= 0n) return '';
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     // 1) Create ledger entry
     const entry = await tx.firmFeeLedger.create({
       data: {
@@ -76,7 +76,7 @@ export async function recordFirmFees(
 
   const totalAmount = nonZero.reduce((sum, f) => sum + f.amountBaseUnits, 0n);
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const ids: string[] = [];
 
     for (const fee of nonZero) {

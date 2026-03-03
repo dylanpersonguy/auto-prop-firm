@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useCurrentUser } from '@/lib/hooks';
 
 interface ReferralInfo {
   referralCode: string;
@@ -28,6 +29,7 @@ function formatUsdc(baseUnits: string): string {
 
 export default function ReferralDashboardPage() {
   const { publicKey } = useWallet();
+  const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const [info, setInfo] = useState<ReferralInfo | null>(null);
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [page, setPage] = useState(1);
@@ -37,25 +39,19 @@ export default function ReferralDashboardPage() {
   const [withdrawResult, setWithdrawResult] = useState('');
   const [error, setError] = useState('');
 
-  // TODO: In production, userId comes from session/JWT context.
-  // For demo, we read it from localStorage (set during registration).
-  const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-
   const fetchInfo = useCallback(async () => {
-    if (!userId) return;
-    const res = await fetch(`/api/referral/me?userId=${userId}`);
+    const res = await fetch('/api/referral/me');
     if (res.ok) setInfo(await res.json());
-  }, [userId]);
+  }, []);
 
   const fetchCommissions = useCallback(async () => {
-    if (!userId) return;
-    const res = await fetch(`/api/referral/commissions?userId=${userId}&page=${page}&limit=10`);
+    const res = await fetch(`/api/referral/commissions?page=${page}&limit=10`);
     if (res.ok) {
       const data = await res.json();
       setCommissions(data.commissions);
       setTotalPages(data.pagination.totalPages);
     }
-  }, [userId, page]);
+  }, [page]);
 
   useEffect(() => { fetchInfo(); }, [fetchInfo]);
   useEffect(() => { fetchCommissions(); }, [fetchCommissions]);
@@ -68,7 +64,7 @@ export default function ReferralDashboardPage() {
   }
 
   async function handleWithdraw() {
-    if (!userId || !publicKey) return;
+    if (!publicKey) return;
     setWithdrawing(true);
     setWithdrawResult('');
     setError('');
@@ -77,7 +73,7 @@ export default function ReferralDashboardPage() {
       const res = await fetch('/api/referral/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, wallet: publicKey.toBase58() }),
+        body: JSON.stringify({ wallet: publicKey.toBase58() }),
       });
 
       const data = await res.json();
@@ -96,7 +92,18 @@ export default function ReferralDashboardPage() {
     }
   }
 
-  if (!userId) {
+  if (userLoading) {
+    return (
+      <main className="max-w-4xl mx-auto px-4 py-12">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 w-48 bg-gray-800 rounded" />
+          <div className="h-4 w-64 bg-gray-800/50 rounded" />
+        </div>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
     return (
       <main className="max-w-4xl mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold mb-4">Referral Program</h1>

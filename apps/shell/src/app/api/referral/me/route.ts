@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { buildReferralLink } from '@/lib/referral';
+import { getAuthUserId } from '@/lib/jwt';
 
 /**
  * GET /api/referral/me
  * Returns the current user's referral code, link, balances, and referral count.
- * In production, userId comes from session/JWT. For now we accept it as a query param.
+ * userId is derived from the verified JWT.
  */
 export async function GET(req: NextRequest) {
   try {
-    const userId = req.nextUrl.searchParams.get('userId');
-    if (!userId) {
-      return NextResponse.json({ error: 'userId required' }, { status: 400 });
-    }
+    // Authenticate user from JWT
+    const authResult = await getAuthUserId();
+    if (authResult.response) return authResult.response;
+    const userId = authResult.userId;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -26,16 +27,16 @@ export async function GET(req: NextRequest) {
     }
 
     // Sum all commissions earned (for lifetime total) — raw SQL since commissionAmount is String
-    const commSum = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    const commSum = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(commissionAmount AS INTEGER)), 0) as total FROM ReferralCommission WHERE referrerId = ?`,
       userId,
-    );
+    )) as { total: number | null }[];
 
     // Sum all withdrawals
-    const withdrawSum = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    const withdrawSum = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(amountBaseUnits AS INTEGER)), 0) as total FROM ReferralWithdrawal WHERE userId = ?`,
       userId,
-    );
+    )) as { total: number | null }[];
 
     const lifetimeEarned = BigInt(commSum[0]?.total ?? 0);
     const totalWithdrawn = BigInt(withdrawSum[0]?.total ?? 0);

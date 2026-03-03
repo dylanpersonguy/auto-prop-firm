@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       const commissionAmount = calculateCommission(expectedAmount);
       if (commissionAmount > 0n) {
         // Atomic: create commission record + increment referrer balance
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
           await tx.referralCommission.create({
             data: {
               referrerId: depositor.referredById!,
@@ -134,8 +134,8 @@ export async function POST(req: NextRequest) {
           });
           // Atomic BigInt increment via raw SQL (Prisma can't increment string fields)
           await tx.$executeRawUnsafe(
-            `UPDATE User SET commissionBalanceLamports = CAST((CAST(commissionBalanceLamports AS INTEGER) + ?) AS TEXT) WHERE id = ?`,
-            Number(commissionAmount),
+            `UPDATE User SET commissionBalanceLamports = CAST((CAST(commissionBalanceLamports AS INTEGER) + CAST(? AS INTEGER)) AS TEXT) WHERE id = ?`,
+            commissionAmount.toString(),
             depositor.referredById!,
           );
         });

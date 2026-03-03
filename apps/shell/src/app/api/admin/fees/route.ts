@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { FIRM_FEES, formatUsdc } from '@/lib/fees';
+import { requireAdmin } from '@/lib/admin-auth';
 
 /**
  * GET /api/admin/fees — Full fee/revenue dashboard data.
  * Returns ledger summary, breakdown by category, profit account balance.
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.authorized) return auth.response;
+
   try {
     // 1) Aggregate by category
     const ledgerEntries = await prisma.firmFeeLedger.findMany({
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 3) Recent ledger entries (last 50)
-    const recentEntries = ledgerEntries.slice(0, 50).map((e) => ({
+    const recentEntries = ledgerEntries.slice(0, 50).map((e: any) => ({
       id: e.id,
       category: e.category,
       amountUsdc: formatUsdc(e.amountBaseUnits),
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
       category: cat,
       amountUsdc: formatUsdc(amount),
       amountBaseUnits: amount.toString(),
-      count: ledgerEntries.filter((e) => e.category === cat).length,
+      count: ledgerEntries.filter((e: any) => e.category === cat).length,
     }));
 
     // 5) Fee configuration (current rates)

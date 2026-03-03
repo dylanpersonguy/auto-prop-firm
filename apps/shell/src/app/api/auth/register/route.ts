@@ -73,13 +73,31 @@ export async function POST(req: NextRequest) {
       attempts++;
     } while (attempts < 10);
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        referralCode: newCode,
-        referredById,
-      },
-    });
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          email,
+          referralCode: newCode,
+          referredById,
+        },
+      });
+    } catch (err: any) {
+      // Handle unique constraint violation on referralCode (extremely rare race condition)
+      if (err?.code === 'P2002' && err?.meta?.target?.includes('referralCode')) {
+        // Retry once with a fresh code
+        newCode = generateReferralCode();
+        user = await prisma.user.create({
+          data: {
+            email,
+            referralCode: newCode,
+            referredById,
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
 
     // Auto-login after registration
     const loginRes = await fetch(`${env.propsimBaseUrl}/api/auth/login`, {

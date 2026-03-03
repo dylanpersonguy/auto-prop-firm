@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { propsimFetch } from '@/lib/propsim';
-import { randomUUID } from 'crypto';
 
 export async function POST(
   req: NextRequest,

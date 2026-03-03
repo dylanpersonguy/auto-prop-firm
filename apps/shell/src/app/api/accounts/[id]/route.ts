@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { propsimFetch } from '@/lib/propsim';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
 
 export async function GET(
   _req: NextRequest,
@@ -25,14 +23,15 @@ export async function GET(
   // Fallback: build from local DepositReceipt
   const receipt = await prisma.depositReceipt.findFirst({ where: { id: params.id } }).catch(() => null);
   if (receipt) {
+    const amountUsdc = Number(BigInt(receipt.amountBaseUnits)) / 1e6;
     return NextResponse.json({
       id: receipt.id,
-      label: `${(receipt.amountUsdc / 1e6).toFixed(0)}K Challenge`,
+      label: `${amountUsdc.toFixed(0)}K Challenge`,
       status: 'ACTIVE',
-      balance: receipt.amountUsdc / 1e6,
-      equity: receipt.amountUsdc / 1e6,
-      startingBalance: receipt.amountUsdc / 1e6,
-      createdAt: receipt.createdAt.toISOString(),
+      balance: amountUsdc,
+      equity: amountUsdc,
+      startingBalance: amountUsdc,
+      createdAt: receipt.verifiedAt.toISOString(),
     });
   }
   return NextResponse.json({ error: 'Account not found' }, { status: 404 });

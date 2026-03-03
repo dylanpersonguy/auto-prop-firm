@@ -130,3 +130,23 @@ export async function requireUser(
 
   return { authorized: true, user: payload };
 }
+
+/**
+ * Convenience: extract authenticated userId from the access token cookie.
+ * Returns { userId, response? }. If response is set, return it immediately.
+ */
+export async function getAuthUserId(): Promise<
+  | { userId: string; response?: never }
+  | { userId?: never; response: Response }
+> {
+  const { cookies } = await import('next/headers');
+  const token = cookies().get('propsim_access_token')?.value;
+  if (!token) {
+    return { response: Response.json({ error: 'Authentication required' }, { status: 401 }) };
+  }
+  const payload = await verifyToken(token);
+  if (!payload?.sub) {
+    return { response: Response.json({ error: 'Invalid or expired token' }, { status: 401 }) };
+  }
+  return { userId: payload.sub };
+}

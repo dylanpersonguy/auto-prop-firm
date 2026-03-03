@@ -135,7 +135,7 @@ export async function POST(
         claimId: Array.from(claim.claimFields.claimId),
         user: claim.claimFields.user.toBase58(),
         usdcMint: claim.claimFields.usdcMint.toBase58(),
-        amount: finalAmount.toString(),
+        amount: traderReceives.toString(),
         validAfter: claim.claimFields.validAfter.toString(),
         validBefore: claim.claimFields.validBefore.toString(),
         dayId: claim.claimFields.dayId,

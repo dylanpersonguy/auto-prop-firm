@@ -87,10 +87,16 @@ export async function proxyPropSimGet(
     if (res.ok) {
       return NextResponse.json(await res.json());
     }
-    // PropSim returned an error — propagate it
+    // PropSim returned an error — propagate with upstream body
     const text = await res.text().catch(() => 'Unknown error');
     console.error(`PropSim ${path} returned ${res.status}: ${text}`);
-    return apiError(`Upstream error: ${res.statusText}`, res.status >= 500 ? 502 : res.status);
+    // Try to parse JSON error body; fall back to statusText
+    let errorMessage = res.statusText;
+    try {
+      const errorJson = JSON.parse(text);
+      errorMessage = errorJson?.error?.message ?? errorJson?.message ?? errorJson?.error ?? res.statusText;
+    } catch { /* not JSON, use statusText */ }
+    return apiError(`Upstream error: ${errorMessage}`, res.status >= 500 ? 502 : res.status);
   } catch (err) {
     // PropSim completely unreachable — use fallback for reads
     console.warn(`PropSim unreachable for ${path}, using fallback`);

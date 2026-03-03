@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getAuthUserId } from '@/lib/jwt';
 
 /**
- * GET /api/referral/commissions?userId=X&page=1&limit=20
+ * GET /api/referral/commissions?page=1&limit=20
  * Returns a paginated ledger of commissions earned.
+ * userId is derived from the verified JWT.
  */
 export async function GET(req: NextRequest) {
   try {
-    const userId = req.nextUrl.searchParams.get('userId');
-    if (!userId) {
-      return NextResponse.json({ error: 'userId required' }, { status: 400 });
-    }
+    // Authenticate user from JWT
+    const authResult = await getAuthUserId();
+    if (authResult.response) return authResult.response;
+    const userId = authResult.userId;
 
     const page = Math.max(1, parseInt(req.nextUrl.searchParams.get('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('limit') || '20', 10)));

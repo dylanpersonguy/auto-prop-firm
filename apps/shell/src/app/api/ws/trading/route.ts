@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   }
 
   let alive = true;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -123,9 +124,9 @@ export async function GET(req: NextRequest) {
       pollSlow();
 
       // Heartbeat every 15s
-      const heartbeat = setInterval(() => {
+      heartbeatTimer = setInterval(() => {
         if (!alive) {
-          clearInterval(heartbeat);
+          clearInterval(heartbeatTimer);
           return;
         }
         send('heartbeat', { timestamp: new Date().toISOString() });
@@ -134,6 +135,7 @@ export async function GET(req: NextRequest) {
 
     cancel() {
       alive = false;
+      clearInterval(heartbeatTimer);
     },
   });
 

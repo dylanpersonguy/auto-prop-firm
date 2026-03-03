@@ -5,9 +5,9 @@ import { issueClaim } from '@/lib/claim-signer';
 import { MIN_WITHDRAWAL_BASE_UNITS } from '@/lib/referral';
 import { calculateWithdrawalFee } from '@/lib/fees';
 import { recordFirmFee } from '@/lib/fee-recorder';
+import { getAuthUserId } from '@/lib/jwt';
 
 const WithdrawBody = z.object({
-  userId: z.string().min(1),
   wallet: z.string().min(32).max(44),
 });
 
@@ -15,11 +15,17 @@ const WithdrawBody = z.object({
  * POST /api/referral/withdraw
  * Issue a signed vault claim for the user's referral commission balance.
  * Min withdrawal: 50 USDC. Debits the full balance atomically.
+ * userId is derived from JWT — NOT from request body.
  */
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate user from JWT
+    const authResult = await getAuthUserId();
+    if (authResult.response) return authResult.response;
+    const userId = authResult.userId;
+
     const body = await req.json();
-    const { userId, wallet } = WithdrawBody.parse(body);
+    const { wallet } = WithdrawBody.parse(body);
 
     // 1) Fetch user & check balance
     const user = await prisma.user.findUnique({ where: { id: userId } });

@@ -37,21 +37,21 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Revenue: sum of all deposit amounts
-    const revenueResult = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    const revenueResult = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(amountBaseUnits AS INTEGER)), 0) as total FROM DepositReceipt`,
-    );
+    )) as { total: number | null }[];
     const totalRevenueBaseUnits = BigInt(revenueResult[0]?.total ?? 0);
 
     // Payouts issued: sum of all payout claim amounts
-    const payoutsResult = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    const payoutsResult = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(amountBaseUnits AS INTEGER)), 0) as total FROM PayoutClaim`,
-    );
+    )) as { total: number | null }[];
     const totalPayoutsBaseUnits = BigInt(payoutsResult[0]?.total ?? 0);
 
     // Commissions owed
-    const commissionsResult = await prisma.$queryRawUnsafe<{ total: number | null }[]>(
+    const commissionsResult = (await prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(CAST(commissionAmount AS INTEGER)), 0) as total FROM ReferralCommission`,
-    );
+    )) as { total: number | null }[];
     const totalCommissionsBaseUnits = BigInt(commissionsResult[0]?.total ?? 0);
 
     // Deposits by SKU
@@ -69,13 +69,13 @@ export async function GET(req: NextRequest) {
         totalDeposits,
         totalRevenueUsdc: (Number(totalRevenueBaseUnits) / 1_000_000).toFixed(2),
         totalRevenueBaseUnits: totalRevenueBaseUnits.toString(),
-        depositsBySku: depositsBySku.map((d) => ({ sku: d.sku, count: d._count })),
+        depositsBySku: depositsBySku.map((d: any) => ({ sku: d.sku, count: d._count })),
       },
       payouts: {
         totalClaims: totalPayoutClaims,
         totalPayoutsUsdc: (Number(totalPayoutsBaseUnits) / 1_000_000).toFixed(2),
         totalPayoutsBaseUnits: totalPayoutsBaseUnits.toString(),
-        byStatus: payoutsByStatus.reduce((acc, p) => {
+        byStatus: payoutsByStatus.reduce((acc: Record<string, number>, p: any) => {
           acc[p.status] = p._count;
           return acc;
         }, {} as Record<string, number>),
