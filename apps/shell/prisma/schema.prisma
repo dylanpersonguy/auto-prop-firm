@@ -73,6 +73,7 @@ model PayoutClaim {
   redeemedTxSig   String?   // Solana tx signature
   createdAt       DateTime  @default(now())
   redeemedAt      DateTime?
+  feeLedger       FirmFeeLedger[] // fees generated from this payout
 }
 
 model DepositReceipt {
@@ -87,4 +88,33 @@ model DepositReceipt {
   verifiedAt       DateTime            @default(now())
   createdAccountId String?             // PropSim account ID after creation
   commission       ReferralCommission? // one-to-one back-relation
+  feeLedger        FirmFeeLedger[]     // fees generated from this deposit
+}
+
+// ── Firm Fee Ledger — tracks every fee the firm earns ──
+
+model FirmFeeLedger {
+  id               String         @id @default(cuid())
+  category         String         // TRADE_COMMISSION | DEPOSIT_FEE | WITHDRAWAL_FEE | PAYOUT_SPLIT | CHALLENGE_PROVIDER_FEE | OVERHEAD_FEE | SPREAD_MARKUP
+  amountBaseUnits  String         // USDC base units (bigint as string)
+  sourceType       String         // DEPOSIT | PAYOUT | TRADE | WITHDRAWAL
+  sourceId         String         // FK to the triggering record (depositReceipt, payoutClaim, etc.)
+  depositReceiptId String?        // optional FK → DepositReceipt
+  depositReceipt   DepositReceipt? @relation(fields: [depositReceiptId], references: [id])
+  payoutClaimId    String?        // optional FK → PayoutClaim
+  payoutClaim      PayoutClaim?   @relation(fields: [payoutClaimId], references: [id])
+  description      String?        // human-readable note
+  createdAt        DateTime       @default(now())
+
+  @@index([category])
+  @@index([sourceType])
+  @@index([createdAt])
+}
+
+// ── Firm Profit Account — running balance of extracted profit ──
+
+model FirmProfitAccount {
+  id               String   @id @default(cuid())
+  balanceBaseUnits String   @default("0") // cumulative profit in USDC base units
+  lastUpdatedAt    DateTime @default(now())
 }

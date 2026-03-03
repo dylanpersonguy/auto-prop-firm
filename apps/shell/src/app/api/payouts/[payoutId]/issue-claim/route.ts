@@ -5,6 +5,8 @@ import { issueClaim, getSignerPublicKey } from '@/lib/claim-signer';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/db';
 import { PublicKey } from '@solana/web3.js';
+import { calculatePayoutSplit, formatUsdc } from '@/lib/fees';
+import { recordFirmFee } from '@/lib/fee-recorder';
 
 const IssueClaimBody = z.object({
   walletPubkey: z.string().min(32).max(44),
@@ -85,16 +87,20 @@ export async function POST(
     const dailyCapBase = BigInt(env.dailyCapUsdc * 1_000_000);
     const finalAmount = amountBaseUnits > dailyCapBase ? dailyCapBase : amountBaseUnits;
 
-    // 5) Issue the signed claim
+    // 4b) Deduct payout split (firm keeps 10% of trader payout)
+    const payoutSplitAmount = calculatePayoutSplit(finalAmount);
+    const traderReceives = finalAmount - payoutSplitAmount;
+
+    // 5) Issue the signed claim (for the reduced amount after firm split)
     const claim = issueClaim({
       payoutId,
       accountId: payout.accountId,
       wallet: walletPubkey,
-      amount: finalAmount,
+      amount: traderReceives,
     });
 
     // 6) Save to DB
-    await prisma.payoutClaim.create({
+    const payoutRecord = await prisma.payoutClaim.create({
       data: {
         payoutId,
         accountId: payout.accountId,
@@ -103,9 +109,19 @@ export async function POST(
         claimId: claim.claimIdHex,
         messageB64: claim.messageB64,
         signatureB64: claim.signatureB64,
-        amountBaseUnits: finalAmount.toString(),
+        amountBaseUnits: traderReceives.toString(),
         status: 'ISSUED',
       },
+    });
+
+    // 6b) Record payout split fee
+    await recordFirmFee({
+      category: 'PAYOUT_SPLIT',
+      amountBaseUnits: payoutSplitAmount,
+      sourceType: 'PAYOUT',
+      sourceId: payoutRecord.id,
+      payoutClaimId: payoutRecord.id,
+      description: `10% payout split on ${formatUsdc(finalAmount)} USDC payout for account ${payout.accountId}`,
     });
 
     // 7) Return claim data for client to build the Solana tx

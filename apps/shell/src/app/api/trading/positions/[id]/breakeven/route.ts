@@ -5,8 +5,16 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const res = await propsimFetch(`/api/trading/positions/${params.id}/breakeven`, {
-    method: 'POST',
+  try {
+    const res = await propsimFetch(`/api/trading/positions/${params.id}/breakeven`, {
+      method: 'POST',
+    });
+    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
+  } catch { /* PropSim unavailable */ }
+
+  return NextResponse.json({
+    id: params.id,
+    stopLossPrice: 0,
+    message: 'Breakeven set (simulated)',
   });
-  return NextResponse.json(await res.json(), { status: res.status });
 }

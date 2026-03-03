@@ -8,6 +8,8 @@ import { env } from '@/lib/env';
 import { getCatalogItem } from '@/lib/catalog';
 import { verifyUsdcTransfer } from '@/lib/solana';
 import { calculateCommission } from '@/lib/referral';
+import { calculateChallengeFees } from '@/lib/fees';
+import { recordFirmFees } from '@/lib/fee-recorder';
 
 const VerifyDepositBody = z.object({
   sku: z.string(),
@@ -87,6 +89,27 @@ export async function POST(req: NextRequest) {
         createdAccountId,
       },
     });
+
+    // 5b) Record firm fees (challenge provider fee + overhead)
+    const challengeFees = calculateChallengeFees(expectedAmount);
+    await recordFirmFees([
+      {
+        category: 'CHALLENGE_PROVIDER_FEE',
+        amountBaseUnits: challengeFees.providerFee,
+        sourceType: 'DEPOSIT',
+        sourceId: depositReceipt.id,
+        depositReceiptId: depositReceipt.id,
+        description: `10% provider fee on ${sku} challenge ($${item.priceUsdc} USDC)`,
+      },
+      {
+        category: 'OVERHEAD_FEE',
+        amountBaseUnits: challengeFees.overhead,
+        sourceType: 'DEPOSIT',
+        sourceId: depositReceipt.id,
+        depositReceiptId: depositReceipt.id,
+        description: `10% overhead fee on ${sku} challenge ($${item.priceUsdc} USDC)`,
+      },
+    ]);
 
     // 6) Credit 15% commission to referrer (if user was referred)
     let commissionCreated = false;

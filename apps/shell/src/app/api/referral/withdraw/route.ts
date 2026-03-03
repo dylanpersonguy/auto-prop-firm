@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { issueClaim } from '@/lib/claim-signer';
 import { MIN_WITHDRAWAL_BASE_UNITS } from '@/lib/referral';
+import { calculateWithdrawalFee } from '@/lib/fees';
+import { recordFirmFee } from '@/lib/fee-recorder';
 
 const WithdrawBody = z.object({
   userId: z.string().min(1),
@@ -35,21 +37,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2) Atomically debit balance AND create withdrawal + claim in a transaction
+    // 2) Deduct withdrawal fee (0.5%) from the balance
+    const withdrawalFee = calculateWithdrawalFee(balance);
+    const netWithdrawal = balance - withdrawalFee;
+
+    // 3) Atomically debit balance AND create withdrawal + claim in a transaction
     const withdrawalId = `ref-withdraw-${userId}-${Date.now()}`;
 
     const claim = issueClaim({
       payoutId: withdrawalId,
       accountId: `referral-${userId}`,
       wallet,
-      amount: balance,
+      amount: netWithdrawal,
     });
 
     const [withdrawal] = await prisma.$transaction([
       prisma.referralWithdrawal.create({
         data: {
           userId,
-          amountBaseUnits: balance.toString(),
+          amountBaseUnits: netWithdrawal.toString(),
           wallet,
           claimId: claim.claimIdHex,
           messageB64: claim.messageB64,
@@ -62,12 +68,25 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
+    // Record withdrawal fee
+    if (withdrawalFee > 0n) {
+      await recordFirmFee({
+        category: 'WITHDRAWAL_FEE',
+        amountBaseUnits: withdrawalFee,
+        sourceType: 'WITHDRAWAL',
+        sourceId: withdrawal.id,
+        description: `0.5% withdrawal fee on ${(Number(balance) / 1_000_000).toFixed(2)} USDC referral withdrawal`,
+      });
+    }
+
     return NextResponse.json(
       {
         message: 'Withdrawal claim issued',
         withdrawalId: withdrawal.id,
-        amountBaseUnits: balance.toString(),
-        amountUsdc: (Number(balance) / 1_000_000).toFixed(2),
+        amountBaseUnits: netWithdrawal.toString(),
+        amountUsdc: (Number(netWithdrawal) / 1_000_000).toFixed(2),
+        feeBaseUnits: withdrawalFee.toString(),
+        feeUsdc: (Number(withdrawalFee) / 1_000_000).toFixed(2),
         claim: {
           messageB64: claim.messageB64,
           signatureB64: claim.signatureB64,

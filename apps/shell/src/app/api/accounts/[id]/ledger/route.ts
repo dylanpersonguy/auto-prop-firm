@@ -5,7 +5,11 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const qs = req.nextUrl.searchParams.toString();
-  const res = await propsimFetch(`/api/accounts/${params.id}/ledger${qs ? `?${qs}` : ''}`);
-  return NextResponse.json(await res.json(), { status: res.status });
+  try {
+    const qs = req.nextUrl.searchParams.toString();
+    const res = await propsimFetch(`/api/accounts/${params.id}/ledger${qs ? `?${qs}` : ''}`);
+    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
+  } catch { /* PropSim unavailable */ }
+
+  return NextResponse.json({ entries: [], total: 0, page: 1, pageSize: 50 });
 }

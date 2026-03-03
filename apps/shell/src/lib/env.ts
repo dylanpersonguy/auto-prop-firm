@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 export const env = {
   propsimBaseUrl: process.env.PROPSIM_BASE_URL || 'http://localhost:3000',
+  propsimApiKey: process.env.PROPSIM_API_KEY || '',
   publicPropsimBaseUrl: process.env.NEXT_PUBLIC_PROPSIM_BASE_URL || 'http://localhost:3000',
   jwtSecret: process.env.PROPSIM_SHELL_JWT_SECRET || 'changeme_local_dev',
   solanaRpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'http://localhost:8899',
