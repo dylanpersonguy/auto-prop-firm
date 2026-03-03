@@ -19,4 +19,3 @@ export async function POST(
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
   }
 }
-}

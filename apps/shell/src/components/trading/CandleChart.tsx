@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo } from 'react';
-import { useCandles, useTick } from '@/lib/hooks';
+import { useCandles, useRealtimeTick } from '@/lib/hooks';
 
 interface Props {
   symbol: string;
@@ -15,7 +15,7 @@ export function CandleChart({ symbol, timeframe = '1H', className = '' }: Props)
   const seriesRef = useRef<any>(null);
 
   const { data: candles = [] } = useCandles(symbol, timeframe, 200);
-  const { data: tick } = useTick(symbol);
+  const tick = useRealtimeTick(symbol);
 
   // Sorted candle data for lightweight-charts
   const chartData = useMemo(

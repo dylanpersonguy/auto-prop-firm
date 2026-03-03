@@ -5,8 +5,25 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from './api';
 import type { ModifyOrderInput, ModifyPositionInput } from './schemas';
+
+// ── Auth ──
+
+export function useCurrentUser() {
+  return useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.authenticated ? data.user : null;
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+}
 
 // ── Accounts ──
 
@@ -220,6 +237,88 @@ export function useTick(symbol: string) {
     refetchInterval: 1_000,
     placeholderData: (prev: any) => prev,
   });
+}
+
+// ── Real-time SSE Ticks ──
+
+export interface RealtimeTick {
+  symbol: string;
+  bid: number;
+  ask: number;
+  mid: number;
+  spread: number;
+  timestamp: string;
+}
+
+/**
+ * Hook that connects to /api/ws/ticks SSE endpoint for real-time tick updates.
+ * Falls back to polling if SSE is unavailable.
+ */
+export function useRealtimeTick(symbol: string): RealtimeTick | null {
+  const [tick, setTick] = useState<RealtimeTick | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    if (!symbol) return;
+
+    const url = `/api/ws/ticks?symbols=${encodeURIComponent(symbol)}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener('tick', (e) => {
+      try {
+        const data = JSON.parse(e.data) as RealtimeTick;
+        if (data.symbol === symbol) {
+          setTick(data);
+        }
+      } catch { /* ignore parse errors */ }
+    });
+
+    es.onerror = () => {
+      // EventSource auto-reconnects; we just ignore transient errors
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [symbol]);
+
+  return tick;
+}
+
+/**
+ * Hook for streaming ticks for multiple symbols.
+ * Returns a map of symbol -> latest tick.
+ */
+export function useRealtimeTicks(symbols: string[]): Record<string, RealtimeTick> {
+  const [ticks, setTicks] = useState<Record<string, RealtimeTick>>({});
+  const esRef = useRef<EventSource | null>(null);
+  const symbolsKey = symbols.sort().join(',');
+
+  useEffect(() => {
+    if (!symbolsKey) return;
+
+    const url = `/api/ws/ticks?symbols=${encodeURIComponent(symbolsKey)}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener('tick', (e) => {
+      try {
+        const data = JSON.parse(e.data) as RealtimeTick;
+        setTicks((prev) => ({ ...prev, [data.symbol]: data }));
+      } catch { /* ignore */ }
+    });
+
+    es.onerror = () => {};
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [symbolsKey]);
+
+  return ticks;
 }
 
 export function useCandles(symbol: string, timeframe?: string, limit?: number) {

@@ -10,7 +10,37 @@ const BASE_PRICES: Record<string, number> = {
 export async function GET() {
   try {
     const res = await propsimFetch('/api/market-data/ticks');
-    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
+    if (res.ok) {
+      const json = await res.json();
+      const raw = json?.data ?? json;
+      // PropSim returns { EURUSD: {symbol,bid,ask,...}, ... } dict – convert to array
+      let ticks: any[];
+      if (Array.isArray(raw)) {
+        ticks = raw;
+      } else if (typeof raw === 'object' && raw !== null) {
+        ticks = Object.values(raw);
+      } else {
+        ticks = [];
+      }
+      // Normalize: add mid + spread + ISO timestamp
+      const normalized = ticks.map((t: any) => {
+        const bid = Number(t.bid);
+        const ask = Number(t.ask);
+        const mid = +((bid + ask) / 2).toFixed(bid > 100 ? 2 : 5);
+        return {
+          symbol: t.symbol,
+          bid,
+          ask,
+          mid,
+          spread: +(ask - bid).toFixed(bid > 100 ? 2 : 5),
+          timestamp: typeof t.timestamp === 'number'
+            ? new Date(t.timestamp).toISOString()
+            : t.timestamp ?? new Date().toISOString(),
+          source: t.source,
+        };
+      });
+      return NextResponse.json(normalized);
+    }
   } catch {
     // PropSim unavailable
   }

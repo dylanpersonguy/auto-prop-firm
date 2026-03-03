@@ -13,7 +13,24 @@ export async function GET(
 ) {
   try {
     const res = await propsimFetch(`/api/market-data/ticks/${encodeURIComponent(params.symbol)}`);
-    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
+    if (res.ok) {
+      const json = await res.json();
+      const t = json?.data ?? json;
+      const bid = Number(t.bid);
+      const ask = Number(t.ask);
+      const mid = +((bid + ask) / 2).toFixed(bid > 100 ? 2 : 5);
+      return NextResponse.json({
+        symbol: t.symbol ?? params.symbol.toUpperCase(),
+        bid,
+        ask,
+        mid,
+        spread: +(ask - bid).toFixed(bid > 100 ? 2 : 5),
+        timestamp: typeof t.timestamp === 'number'
+          ? new Date(t.timestamp).toISOString()
+          : t.timestamp ?? new Date().toISOString(),
+        source: t.source,
+      });
+    }
   } catch {
     // PropSim unavailable — fall through to mock tick
   }

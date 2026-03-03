@@ -70,7 +70,20 @@ export async function GET(
     const res = await propsimFetch(
       `/api/market-data/candles/${encodeURIComponent(params.symbol)}${qs ? `?${qs}` : ''}`,
     );
-    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
+    if (res.ok) {
+      const json = await res.json();
+      const raw: any[] = json?.data ?? json;
+      // Normalize: ensure 'time' is in seconds (lightweight-charts expects seconds)
+      const candles = raw.map((c: any) => ({
+        time: c.time > 1e12 ? Math.floor(c.time / 1000) : c.time,
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        volume: Number(c.volume ?? 0),
+      }));
+      return NextResponse.json(candles);
+    }
   } catch {
     // PropSim unavailable — fall through to mock data
   }

@@ -7,21 +7,46 @@ import { generateReferralCode, isValidCodeFormat } from '@/lib/referral';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password, referralCode, ...rest } = body;
+    const { email, password, firstName, lastName, referralCode, ...rest } = body;
 
-    // Register with PropSim
+    // --- Try PropSim self-registration first ---
+    let propsimUserId: string | null = null;
     const registerRes = await fetch(`${env.propsimBaseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, ...rest }),
+      body: JSON.stringify({ email, password, firstName, lastName, ...rest }),
     });
 
-    if (!registerRes.ok) {
-      const err = await registerRes.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: err.message || 'Registration failed' },
-        { status: registerRes.status },
-      );
+    if (registerRes.ok) {
+      const regData = await registerRes.json();
+      const reg = regData?.data ?? regData;
+      propsimUserId = reg?.id ?? reg?.userId ?? null;
+    } else {
+      // PropSim registration may have a UUID bug — fall back to admin user creation
+      if (env.propsimApiKey) {
+        const adminRes = await fetch(`${env.propsimBaseUrl}/api/admin/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.propsimApiKey}`,
+          },
+          body: JSON.stringify({ email, password, firstName, lastName }),
+        });
+
+        if (adminRes.ok) {
+          const adminData = await adminRes.json();
+          const user = adminData?.data ?? adminData;
+          propsimUserId = user?.id ?? null;
+        } else {
+          const err = await adminRes.json().catch(() => ({}));
+          const msg = err?.error?.message ?? err?.message ?? 'Registration failed';
+          return NextResponse.json({ error: msg }, { status: adminRes.status });
+        }
+      } else {
+        const err = await registerRes.json().catch(() => ({}));
+        const msg = err?.error?.message ?? err?.message ?? 'Registration failed';
+        return NextResponse.json({ error: msg }, { status: registerRes.status });
+      }
     }
 
     // ── Create local User record with referral tracking ──
@@ -71,7 +96,9 @@ export async function POST(req: NextRequest) {
     }
 
     const tokens = await loginRes.json();
-    setTokenCookies(tokens.accessToken, tokens.refreshToken);
+    // PropSim wraps in { success, data: { accessToken, refreshToken } }
+    const tokenData = tokens?.data ?? tokens;
+    setTokenCookies(tokenData.accessToken, tokenData.refreshToken);
 
     return NextResponse.json(
       { message: 'Registered and logged in', userId: user.id, referralCode: user.referralCode },

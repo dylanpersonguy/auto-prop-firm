@@ -20,7 +20,28 @@ const MOCK_SYMBOLS = [
 export async function GET() {
   try {
     const res = await propsimFetch('/api/market-data/symbols');
-    if (res.ok) return NextResponse.json(await res.json(), { status: res.status });
+    if (res.ok) {
+      const json = await res.json();
+      const raw: any[] = json?.data ?? json;
+      // Normalize: PropSim uses 'name', our frontend expects 'symbol'
+      const symbols = raw.map((s: any) => ({
+        symbol: s.name ?? s.symbol,
+        name: s.displayName ?? s.name ?? s.symbol,
+        description: s.displayName ?? s.name,
+        category: (s.category ?? 'other').toLowerCase(),
+        digits: s.digits ?? 5,
+        pipSize: s.pipSize,
+        contractSize: s.contractSize,
+        lotSize: s.contractSize,
+        minQuantity: s.minQuantity ?? 0.01,
+        maxQuantity: s.maxQuantity ?? 100,
+        commissionPerLot: s.commissionPerLot,
+        swapLong: s.swapLong,
+        swapShort: s.swapShort,
+        maxLeverage: s.maxLeverage,
+      }));
+      return NextResponse.json(symbols);
+    }
   } catch {
     // PropSim unavailable
   }

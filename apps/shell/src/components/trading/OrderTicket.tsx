@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { usePlaceOrder } from '@/lib/hooks';
-import { useTick } from '@/lib/hooks';
+import { usePlaceOrder, useRealtimeTick } from '@/lib/hooks';
 import { PlaceOrderSchema } from '@/lib/schemas';
 
 interface Props {
@@ -36,7 +35,7 @@ export function OrderTicket({ accountId, symbol, className = '' }: Props) {
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const { data: tick } = useTick(symbol);
+  const tick = useRealtimeTick(symbol);
   const placeOrder = usePlaceOrder();
 
   const handleSubmit = useCallback(
