@@ -1,0 +1,16 @@
+node_modules
+.next
+dist
+target
+.anchor
+test-ledger
+*.so
+.env
+.env.local
+apps/shell/.env
+apps/shell/.env.local
+apps/shell/prisma/dev.db
+apps/shell/prisma/dev.db-journal
+programs/propsim_vault/target
+.turbo
+.DS_Store

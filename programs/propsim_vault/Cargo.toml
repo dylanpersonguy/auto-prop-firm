@@ -1,0 +1,21 @@
+[package]
+name = "propsim-vault"
+version = "0.1.0"
+description = "PropSim Vault – USDC claim redemption with Ed25519 signature verification"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "propsim_vault"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
+anchor-spl = "0.30.1"
+bytemuck = "1.14"

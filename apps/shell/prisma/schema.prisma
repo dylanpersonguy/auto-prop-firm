@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ── User with referral tracking ──
+
+model User {
+  id                    String               @id @default(cuid())
+  email                 String               @unique
+  role                  String               @default("USER") // USER | ADMIN
+  referralCode          String               @unique // 8-char alphanumeric
+  referredById          String?              // FK → User.id (nullable)
+  referredBy            User?                @relation("Referrals", fields: [referredById], references: [id])
+  referrals             User[]               @relation("Referrals")
+  commissionBalanceLamports String           @default("0") // USDC base units owed (bigint as string)
+  createdAt             DateTime             @default(now())
+
+  commissionsEarned     ReferralCommission[] @relation("CommissionsEarned")
+  commissionsGenerated  ReferralCommission[] @relation("CommissionsGenerated")
+  withdrawals           ReferralWithdrawal[]
+}
+
+// ── Referral commission ledger ──
+
+model ReferralCommission {
+  id               String   @id @default(cuid())
+  referrerId       String   // User.id of the referrer who earns
+  referrer         User     @relation("CommissionsEarned", fields: [referrerId], references: [id])
+  referredUserId   String   // User.id of the purchaser
+  referredUser     User     @relation("CommissionsGenerated", fields: [referredUserId], references: [id])
+  depositReceiptId String   @unique // FK → DepositReceipt.id (one commission per deposit)
+  depositReceipt   DepositReceipt @relation(fields: [depositReceiptId], references: [id])
+  depositAmount    String   // USDC base units of the deposit
+  commissionAmount String   // 15% of deposit in USDC base units
+  createdAt        DateTime @default(now())
+}
+
+// ── Referral withdrawal (signed claim) ──
+
+model ReferralWithdrawal {
+  id              String    @id @default(cuid())
+  userId          String    // User.id
+  user            User      @relation(fields: [userId], references: [id])
+  amountBaseUnits String    // USDC base units withdrawn
+  wallet          String    // Solana pubkey (base58)
+  claimId         String    @unique // hex 64 chars (sha256)
+  messageB64      String
+  signatureB64    String
+  status          String    @default("ISSUED") // ISSUED | REDEEMED
+  redeemedTxSig   String?
+  createdAt       DateTime  @default(now())
+  redeemedAt      DateTime?
+}
+
+// ── Existing models ──
+
+model PayoutClaim {
+  id              String    @id @default(cuid())
+  payoutId        String    @unique // UUID from PropSim
+  accountId       String    // UUID
+  userId          String    // UUID
+  wallet          String    // Solana pubkey (base58)
+  claimId         String    @unique // hex 64 chars (sha256)
+  messageB64      String    // Borsh-serialized claim, base64
+  signatureB64    String    // Ed25519 sig, base64
+  amountBaseUnits String    // USDC base units as string
+  status          String    @default("ISSUED") // ISSUED | REDEEMED | EXPIRED
+  redeemedTxSig   String?   // Solana tx signature
+  createdAt       DateTime  @default(now())
+  redeemedAt      DateTime?
+}
+
+model DepositReceipt {
+  id               String              @id @default(cuid())
+  userId           String
+  sku              String
+  templateId       String
+  amountBaseUnits  String
+  treasuryWallet   String
+  depositorWallet  String
+  txSig            String              @unique
+  verifiedAt       DateTime            @default(now())
+  createdAccountId String?             // PropSim account ID after creation
+  commission       ReferralCommission? // one-to-one back-relation
+}
